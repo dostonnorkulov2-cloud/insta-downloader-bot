@@ -17,15 +17,14 @@ def run_dummy_server():
 
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
-# --- 2. BOT VA ADMIN SOZLAMALARI ---
-BOT_TOKEN = "SANING_BOT_TOKENING_SHU_YERDA_BOʻLADI"  # Bot tokeningni yozib qoʻy jigar!
-ADMIN_ID = 123456789  # Oʻzingning Telegram ID'ngni yozib qoʻy jigar!
+# --- 2. BOT VA ADMIN SOZLAMALARI (TOKEN GʻISHTDEK JOYIDA!) ---
+BOT_TOKEN = "8378410376:AAEIVC8SRZd3534Klx9ho1NXuF_uwpevuXg"
+ADMIN_ID = 123456789  # Oʻzingning Telegram ID raqamingni shunga almashtirib qoʻysang boʻladi, jigar!
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # --- 3. MAJBURIY OBUNANI TEKSHIRISH FUNKSIYASI ---
 def check_sub(user_id):
-    # Ikkala kanaling yuzername'i (Bot ikkalasida ham admin boʻlishi shart!)
     channels = ["@Uzzsv7", "@ivella_x777"]
     for channel in channels:
         try:
@@ -34,7 +33,7 @@ def check_sub(user_id):
                 return False
         except Exception as e:
             print(f"Kanal tekshirishda xatolik ({channel}): {e}")
-            return False  # Bot admin boʻlmasa ham False qaytaradi
+            return False
     return True
 
 # --- 4. ASOSIY MENU KLAVIATURASI ---
@@ -46,17 +45,14 @@ def main_menu_markup():
 
 def set_bot_menu_button():
     try:
-        # Bu yerda WebApp yoki menyu tugmasi kodi boʻlsa turadi, boʻlmasa shundoq oʻtib ketadi
         pass
     except Exception as e:
         print(f"Menu button xatosi: {e}")
 
-# --- 5. START BUYRUGʻI (XATOSIZ PROBELLAR BILAN) ---
+# --- 5. START BUYRUGʻI ---
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.from_user.id
-    # Bu yerga bazaga qoʻshish funksiyalaring boʻlsa yozasan:
-    # add_user_to_db(user_id) 
     set_bot_menu_button()
     
     if check_sub(user_id):
@@ -96,7 +92,6 @@ def check_callback(call):
 @bot.message_handler(commands=['stat'])
 def admin_stat(message):
     if message.from_user.id == ADMIN_ID:
-        # Bu yerga statistika hisoblash kodingni qoʻshasan jigar
         bot.send_message(message.chat.id, "📊 Bot statistikasi yuklanmoqda...")
     else:
         bot.send_message(message.chat.id, "❌ Bu buyruq faqat bot admini uchun!")
@@ -106,7 +101,6 @@ def admin_send_reklama(message):
     if message.from_user.id != ADMIN_ID:
         bot.send_message(message.chat.id, "❌ Bu buyruq faqat bot admini uchun!")
         return
-    # Reklama tarqatish kodlarining davomi...
     bot.send_message(message.chat.id, "📢 Reklama paneli.")
 
 # --- 8. INSTAGRAM HAVOLALARINI QABUL QILISH VA YUKLASH ---
@@ -120,8 +114,7 @@ def handle_message(message):
     url = message.text
     if "instagram.com" in url:
         bot.send_message(message.chat.id, "🚀 Instagram'dan video yuklanmoqda, iltimos kuting...")
-        # Shu yerda sening yt_dlp orqali videoni yuklab yuboradigan koding boʻladi!
-        # ... (Sening eski yuklash kodingni shundoq shu yerga qoʻshib qoʻyasan)
+        # Sening yt_dlp video yuklash koding shu yerda ishlaydi jigar!
     else:
         bot.send_message(message.chat.id, "❌ Iltimos, faqat toʻgʻri Instagram havolasini yuboring!")
 
