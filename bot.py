@@ -1,3 +1,6 @@
+import http.server
+import socketserver
+import threading
 import telebot
 from telebot import types
 import yt_dlp
@@ -62,11 +65,15 @@ def recognize_audio_via_api(filename):
     return "Noma'lum ijrochi", "Noma'lum musiqa"
 
 def check_sub(user_id):
-    try:
-        status = bot.get_chat_member(CHANNEL_ID, user_id).status
-        return status in ['member', 'administrator', 'creator']
-    except:
-        return False
+    channels = ["@Uzzsv7", "@ivella_x777"]  # Ikkala kanal yuzername'i
+    for channel in channels:
+        try:
+            member = bot.get_chat_member(channel, user_id)
+            if member.status in ['left', 'kicked']:
+                return False
+        except Exception:
+            return False
+    return True
 
 def main_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=2)
@@ -105,11 +112,13 @@ def start(message):
             f"Salom {message.from_user.first_name}! 👋\n\nInstagram havolasini yuboring, uni eng maksimal sifatda yuklab beraman!\n\nYoki pastdagi Web App tugmalari orqali onlayn foydalaning! 👇",
             reply_markup=main_menu_markup()
         )
-    else:
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("Kanalga obuna bo'lish", url="https://t.me/Uzzsv7"))
-        markup.add(types.InlineKeyboardButton("Tekshirish ✅", callback_data="check"))
-        bot.send_message(message.chat.id, "Botdan foydalanish uchun kanalimizga obuna bo'ling!", reply_markup=markup)
+            markup = types.InlineKeyboardMarkup(row_width=1)
+        markup.add(
+            types.InlineKeyboardButton("1-Kanalga obuna boʻlish", url="https://t.me/Uzzsv7"),
+            types.InlineKeyboardButton("2-Kanalga obuna boʻlish", url="https://t.me/ivella_x777"),
+            types.InlineKeyboardButton("Tekshirish ✅", callback_data="check")
+        )
+        bot.send_message(message.chat.id, "Botdan foydalanish uchun kanallarimizga obuna boʻling!", reply_markup=markup)
 
 @bot.message_handler(commands=['stat'])
 def admin_stat(message):
@@ -234,6 +243,13 @@ def convert_to_mp3_callback(call):
     except Exception as e:
         print(e)
         bot.edit_message_text("❌ Musiqani ajratish jarayonida xatolik bo'ldi.", call.message.chat.id, wait_msg.message_id)
+def run_dummy_server():
+    PORT = 10000
+    Handler = http.server.SimpleHTTPRequestHandler
+    with socketserver.TCPServer(("", PORT), Handler) as httpd:
+        httpd.serve_forever()
+
+threading.Thread(target=run_dummy_server, daemon=True).start()
 
 bot.polling(none_stop=True)
 
