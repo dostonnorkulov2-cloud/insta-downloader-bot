@@ -7,7 +7,7 @@ import yt_dlp
 import os
 import subprocess
 
-# --- 0. YT-DLP KUTUBXONASINI MAJBURIY YANGILASH ---
+# --- 0. YT-DLP MAJBURIY YANGILASH ---
 try:
     print("yt-dlp yangilanmoqda...")
     subprocess.run(["pip", "install", "--upgrade", "yt-dlp"], check=True)
@@ -21,20 +21,19 @@ def run_dummy_server():
     Handler = http.server.SimpleHTTPRequestHandler
     try:
         with socketserver.TCPServer(("", PORT), Handler) as httpd:
-            print(f"Dummy server {PORT}-portda muvaffaqiyatli ishga tushdi.")
+            print(f"Dummy server {PORT}-portda ishlamoqda.")
             httpd.serve_forever()
     except Exception as e:
         print(f"Dummy server xatosi: {e}")
 
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
-# --- 2. BOT VA ADMIN SOZLAMALARI ---
+# --- 2. BOT SOZLAMALARI ---
 BOT_TOKEN = "8378410376:AAEIVC8SRZd3534Klx9ho1NXuF_uwpevuXg"
-
 bot = telebot.TeleBot(BOT_TOKEN)
 user_downloads = {}
 
-# --- 3. MAJBURIY OBUNANI TEKSHIRISH FUNKSIYASI ---
+# --- 3. MAJBURIY OBUNANI TEKSHIRISH ---
 def check_sub(user_id):
     channels = ["@Uzzsv7", "@ivella_x777"]
     for channel in channels:
@@ -47,7 +46,7 @@ def check_sub(user_id):
             return False
     return True
 
-# --- 4. ASOSIY SHAFFOF (INLINE) MENU TUGMALARI ---
+# --- 4. ASOSIY SHAFFOF MENU TUGMALARI ---
 def main_menu_inline():
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -79,13 +78,9 @@ def start(message):
             types.InlineKeyboardButton("2-Kanalga obuna boʻlish 📢", url="https://t.me/ivella_x777"),
             types.InlineKeyboardButton("Tekshirish ✅", callback_data="check_subscription")
         )
-        bot.send_message(
-            message.chat.id, 
-            "Botdan foydalanish uchun kanallarimizga obuna boʻling!", 
-            reply_markup=markup
-        )
+        bot.send_message(message.chat.id, "Botdan foydalanish uchun kanallarimizga obuna boʻling!", reply_markup=markup)
 
-# --- 6. BARCHA CALLBACK (SHAFFOF TUGMALAR) ISHLASHI ---
+# --- 6. CALLBACK (SHAFFOF TUGMALAR) FUNKSIYALARI ---
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     user_id = call.from_user.id
@@ -95,8 +90,7 @@ def callback_handler(call):
             bot.delete_message(call.message.chat.id, call.message.message_id)
             bot.send_message(
                 call.message.chat.id,
-                f"Rahmat! Obuna tasdiqlandi. Endi Instagram havolasini yuborishingiz mumkin. 🚀\n\n"
-                f"Yoki pastdagi tugmalardan foydalaning: 👇",
+                f"Rahmat! Obuna tasdiqlandi. Endi Instagram havolasini yuborishingiz mumkin. 🚀",
                 reply_markup=main_menu_inline()
             )
         else:
@@ -112,10 +106,8 @@ def callback_handler(call):
         
     elif call.data == "creator_bot":
         bot.answer_callback_query(call.id)
-        # Senga munosib daxshatli maqtov matni va ostida admin bilan aloqa inline tugmasi:
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("📲 Admin bilan aloqa", url="https://t.me/PM_Dostonbek"))
-        
         bot.send_message(
             call.message.chat.id, 
             "👑 **Bot Yaratuvchisi Haqida:**\n\n"
@@ -131,7 +123,7 @@ def callback_handler(call):
         bot.answer_callback_query(call.id, "Videodan musiqa ajratilmoqda... 🎵")
         
         if target_id not in user_downloads:
-            bot.send_message(call.message.chat.id, "❌ Xatolik: Havola topilmadi. Linkni qaytadan yuboring.")
+            bot.send_message(call.message.chat.id, "❌ Xatolik: Havola topilmadi. Qaytadan urinib ko'ring.")
             return
             
         url = user_downloads[target_id]['url']
@@ -141,6 +133,10 @@ def callback_handler(call):
             'format': 'bestaudio/best',
             'outtmpl': audio_file,
             'quiet': True,
+            'geo_bypass': True,
+            'headers': {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1'
+            },
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
@@ -148,24 +144,20 @@ def callback_handler(call):
             }],
         }
         
-        wait_msg = bot.send_message(call.message.chat.id, "🎵 Musiqa yuqori sifatda tayyorlanmoqda...")
-        
+        wait_msg = bot.send_message(call.message.chat.id, "🎵 Musiqa tayyorlanmoqda...")
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
-                
             final_mp3 = f"{audio_file}.mp3"
             with open(final_mp3, 'rb') as f:
-                bot.send_audio(call.message.chat.id, f, caption="🎵 @Uzzsv7 va @ivella_x777 hamkorligida tayyorlandi.")
-                
+                bot.send_audio(call.message.chat.id, f, caption="🎵 @Uzzsv7 va @ivella_x777 hamkorligida")
             bot.delete_message(call.message.chat.id, wait_msg.message_id)
             if os.path.exists(final_mp3):
                 os.remove(final_mp3)
         except Exception as e:
-            print(e)
-            bot.edit_message_text("❌ Musiqani ajratish jarayonida xatolik boʻldi.", call.message.chat.id, wait_msg.message_id)
+            bot.edit_message_text("❌ Musiqani ajratishda xatolik boʻldi.", call.message.chat.id, wait_msg.message_id)
 
-# --- 7. INSTAGRAM HAVOLALARINI QABUL QILISH VA YUKLASH ---
+# --- 7. BUSTED-PROOF INSTAGRAM YUKLASH FUNKSIYASI ---
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     user_id = message.from_user.id
@@ -174,7 +166,6 @@ def handle_message(message):
         return
 
     url = message.text
-
     if "instagram.com" in url:
         user_downloads[user_id] = {'url': url}
         wait_msg = bot.send_message(message.chat.id, "🚀 Instagram'dan video yuklanmoqda, iltimos kuting...")
@@ -182,13 +173,20 @@ def handle_message(message):
         try:
             filename = f"insta_{user_id}.mp4"
             
+            # Instagram blokirovkasini aylanib o'tuvchi eng daxshatli sozlamalar (Mobile Headers Emulator):
             ydl_opts = {
-                'format': 'best', 
+                'format': 'best',
                 'outtmpl': filename,
                 'quiet': True,
                 'no_warnings': True,
+                'geo_bypass': True,  # Server joylashuvini yashirish
+                'add_header': [
+                    'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                    'Accept-Language: en-US,en;q=0.5'
+                ],
                 'headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1',
+                    'Referer': 'https://www.instagram.com/',
                 }
             }
             
@@ -196,35 +194,37 @@ def handle_message(message):
                 info = ydl.extract_info(url, download=True)
                 title = info.get('title', 'Instagram Reels')[:350]
             
-            # --- VIDEO OSTIDAGI 3 TA SHAFFOF TUGMA ---
             markup = types.InlineKeyboardMarkup(row_width=1)
             markup.add(
                 types.InlineKeyboardButton("🎵 Musiqasini ajratib olish (MP3)", callback_data=f"convert_{user_id}"),
                 types.InlineKeyboardButton("🔗 Havolani yuklab olish", url=url),
-                types.InlineKeyboardButton("📲 Videoni ulashish", switch_inline_query=f"Instagram'dagi daxshatli video: {url}")
+                types.InlineKeyboardButton("📲 Videoni ulashish", switch_inline_query=f"Instagram video: {url}")
             )
             
             with open(filename, 'rb') as video:
                 bot.send_video(
                     message.chat.id, 
                     video, 
-                    caption=f"🎬 **Sarlavha:** {title}\n\n🤖 Serverda joy: Free Space\n@Uzzsv7 va @ivella_x777 hamkorligida",
+                    caption=f"🎬 **Sarlavha:** {title}\n\n🤖 @Uzzsv7 va @ivella_x777 hamkorligida",
                     reply_markup=markup,
                     parse_mode="Markdown"
                 )
             
             bot.delete_message(message.chat.id, wait_msg.message_id)
-            
             if os.path.exists(filename):
                 os.remove(filename)
                 
         except Exception as e:
-            print(e)
-            bot.edit_message_text("❌ Instagram videosini yuklab boʻlmadi. Havola xato yoki profil yopiq.", message.chat.id, wait_msg.message_id)
+            print(f"Yuklash xatosi: {e}")
+            bot.edit_message_text(
+                "❌ Instagram videosini yuklab boʻlmadi.\n\n"
+                "💡 **Maslahat:** Server IP manzili vaqtinchalik bloklangan boʻlishi mumkin. Bir necha daqiqadan soʻng qayta urinib koʻring yoki boshqa havola yuboring.", 
+                message.chat.id, 
+                wait_msg.message_id
+            )
     else:
-        bot.send_message(message.chat.id, "❌ Iltimos, faqat toʻgʻri Instagram havolasini yuboring!")
+        bot.send_message(message.chat.id, "❌ Iltimos, toʻgʻri Instagram havolasini yuboring!")
 
-# --- 8. BOTNI JONLANTIRISH ---
-print("Bot muvaffaqiyatli ishga tushmoqda...")
+print("Bot ishga tushdi...")
 bot.polling(none_stop=True)
 
