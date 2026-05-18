@@ -106,13 +106,14 @@ def start(message):
     add_user_to_db(user_id)
     set_bot_menu_button()
     
-    if check_sub(user_id):
+        if check_sub(user_id):
         bot.send_message(
-            message.chat.id, 
-            f"Salom {message.from_user.first_name}! 👋\n\nInstagram havolasini yuboring, uni eng maksimal sifatda yuklab beraman!\n\nYoki pastdagi Web App tugmalari orqali onlayn foydalaning! 👇",
+            message.chat.id,
+            f"Salom {message.from_user.first_name}! 👋\n\nInstagram havolasini yuboring, uni eng maksimal sifatda yuklab beraman.",
             reply_markup=main_menu_markup()
         )
-            markup = types.InlineKeyboardMarkup(row_width=1)
+    else:
+        markup = types.InlineKeyboardMarkup(row_width=1)
         markup.add(
             types.InlineKeyboardButton("1-Kanalga obuna boʻlish", url="https://t.me/Uzzsv7"),
             types.InlineKeyboardButton("2-Kanalga obuna boʻlish", url="https://t.me/ivella_x777"),
