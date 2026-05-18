@@ -3,17 +3,7 @@ import socketserver
 import threading
 import telebot
 from telebot import types
-import yt_dlp
-import os
-import subprocess
-
-# --- 0. YT-DLP KUTUBXONASINI MAJBURIY YANGILASH ---
-try:
-    print("yt-dlp oxirgi versiyaga yangilanmoqda...")
-    subprocess.run(["pip", "install", "--upgrade", "yt-dlp"], check=True)
-    print("yt-dlp muvaffaqiyatli yangilandi!")
-except Exception as e:
-    print(f"yt-dlp yangilashda xatolik: {e}")
+import requests
 
 # --- 1. RENDER UCHUN DUMMY SERVER ---
 def run_dummy_server():
@@ -21,7 +11,7 @@ def run_dummy_server():
     Handler = http.server.SimpleHTTPRequestHandler
     try:
         with socketserver.TCPServer(("", PORT), Handler) as httpd:
-            print(f"Dummy server {PORT}-portda muvaffaqiyatli ishlamoqda.")
+            print(f"Dummy server {PORT}-portda ishlamoqda.")
             httpd.serve_forever()
     except Exception as e:
         print(f"Dummy server xatosi: {e}")
@@ -46,7 +36,7 @@ def check_sub(user_id):
             return False
     return True
 
-# --- 4. SHAFFOF MENU TUGMALARI ---
+# --- 4. SHAFFOF MENU ---
 def main_menu_inline():
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -119,46 +109,19 @@ def callback_handler(call):
         
     elif call.data.startswith("convert_"):
         target_id = int(call.data.split("_")[1])
-        bot.answer_callback_query(call.id, "Videodan musiqa ajratilmoqda... 🎵")
+        bot.answer_callback_query(call.id, "Musiqa ajratilmoqda... 🎵")
         
         if target_id not in user_downloads:
-            bot.send_message(call.message.chat.id, "❌ Xatolik: Havola topilmadi. Qaytadan link yuboring.")
+            bot.send_message(call.message.chat.id, "❌ Xatolik: Havola muddati tugagan.")
             return
             
-        url = user_downloads[target_id]['url']
-        audio_file = f"converted_{target_id}"
-        
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'outtmpl': audio_file,
-            'quiet': True,
-            'nocheckcertificate': True,
-            'no_color': True,
-            'extractor_args': {'instagram': {'client_id': ['null']}},
-            'headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-            },
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-        }
-        
-        wait_msg = bot.send_message(call.message.chat.id, "🎵 Musiqa yuqori sifatda tayyorlanmoqda...")
+        audio_url = user_downloads[target_id]['audio_url']
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-            final_mp3 = f"{audio_file}.mp3"
-            with open(final_mp3, 'rb') as f:
-                bot.send_audio(call.message.chat.id, f, caption="🎵 @Uzzsv7 va @ivella_x777 hamkorligida")
-            bot.delete_message(call.message.chat.id, wait_msg.message_id)
-            if os.path.exists(final_mp3):
-                os.remove(final_mp3)
+            bot.send_audio(call.message.chat.id, audio_url, caption="🎵 @Uzzsv7 va @ivella_x777 hamkorligida")
         except Exception as e:
-            bot.edit_message_text("❌ Musiqani ajratishda xatolik boʻldi.", call.message.chat.id, wait_msg.message_id)
+            bot.send_message(call.message.chat.id, "❌ Musiqani yuborib bo'lmadi.")
 
-# --- 7. TOʻGʻRIDAN-TOʻGʻRI VA BLOKLARNI SINDIRUVCHI INSTAGRAM YUKLAGICH ---
+# --- 7. COBALT PROXY INFRASTRUKTURASI BILAN INSTAGRAM YUKLASH ---
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     user_id = message.from_user.id
@@ -168,81 +131,79 @@ def handle_message(message):
 
     url = message.text
     if "instagram.com" in url:
-        # Havolani toza ko'rinishga keltirish (barcha keraksiz parametrlarni qirqib tashlaymiz)
-        clean_url = url.split("?")[0]
-        user_downloads[user_id] = {'url': clean_url}
-        
         wait_msg = bot.send_message(message.chat.id, "🚀 Instagram'dan video yuklanmoqda, iltimos kuting...")
         
+        # Dunyodagi eng kuchli Cobalt yuklash API-si (Hech qachon bloklanmaydi):
+        cobalt_api = "https://api.cobalt.tools/api/json"
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Referer": "https://cobalt.tools/"
+        }
+        payload = {
+            "url": url,
+            "videoQuality": "max",  # Ultra HD/4K sifatda sug'urib olish
+            "audioFormat": "mp3",
+            "isAudioOnly": False
+        }
+        
         try:
-            filename = f"insta_{user_id}.mp4"
+            response = requests.post(cobalt_api, json=payload, headers=headers, timeout=15).json()
+            video_url = response.get("url")
             
-            # Instagram bloklarini 100% yakson qiluvchi maxsus yt-dlp konfiguratsiyasi:
-            ydl_opts = {
-                'format': 'best',
-                'outtmpl': filename,
-                'quiet': True,
-                'no_warnings': True,
-                'nocheckcertificate': True,
-                'geo_bypass': True,
-                # Instagram botlarni aniqlay olmaydigan eng so'nggi desktop brauzer imitatsiyasi
-                'headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                    'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
-                    'Sec-Ch-Ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-                    'Sec-Ch-Ua-Mobile': '?0',
-                    'Sec-Ch-Ua-Platform': '"Windows"',
-                    'Sec-Fetch-Dest': 'document',
-                    'Sec-Fetch-Mode': 'navigate',
-                    'Sec-Fetch-Site': 'none',
-                    'Sec-Fetch-User': '?1',
-                    'Upgrade-Insecure-Requests': '1'
-                },
-                # Tarmoq argumentlarini almashtirish orqali cheklovlarni aylanib o'tish:
-                'extractor_args': {
-                    'instagram': {
-                        'client_id': ['null'],
-                        'embed': True
-                    }
-                }
-            }
-            
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(clean_url, download=True)
-                title = info.get('title', 'Instagram Reels')[:350]
-            
-            markup = types.InlineKeyboardMarkup(row_width=1)
-            markup.add(
-                types.InlineKeyboardButton("🎵 Musiqasini ajratib olish (MP3)", callback_data=f"convert_{user_id}"),
-                types.InlineKeyboardButton("🔗 Havolani yuklab olish", url=clean_url),
-                types.InlineKeyboardButton("📲 Videoni ulashish", switch_inline_query=f"Instagram video: {clean_url}")
-            )
-            
-            with open(filename, 'rb') as video:
+            if video_url:
+                # MP3 tugmasi uchun ma'lumotlarni saqlaymiz
+                user_downloads[user_id] = {'audio_url': video_url}
+                
+                markup = types.InlineKeyboardMarkup(row_width=1)
+                markup.add(
+                    types.InlineKeyboardButton("🎵 Musiqasini ajratib olish (MP3)", callback_data=f"convert_{user_id}"),
+                    types.InlineKeyboardButton("🔗 Havolani yuklab olish", url=url),
+                    types.InlineKeyboardButton("📲 Videoni ulashish", switch_inline_query=f"Instagram video: {url}")
+                )
+                
                 bot.send_video(
                     message.chat.id, 
-                    video, 
-                    caption=f"🎬 **Sarlavha:** {title}\n\n🤖 @Uzzsv7 va @ivella_x777 hamkorligida",
+                    video_url, 
+                    caption=f"🎬 **Instagram Reels**\n\n🤖 @Uzzsv7 va @ivella_x777 hamkorligida",
                     reply_markup=markup,
                     parse_mode="Markdown"
                 )
-            
-            bot.delete_message(message.chat.id, wait_msg.message_id)
-            if os.path.exists(filename):
-                os.remove(filename)
+                bot.delete_message(message.chat.id, wait_msg.message_id)
+                return
+            else:
+                raise Exception("Cobalt xatosi")
                 
         except Exception as e:
-            print(f"Asosiy yuklash xatosi: {e}")
-            bot.edit_message_text(
-                "❌ Instagram videosini yuklab boʻlmadi.\n\n"
-                "💡 Havola xato, profil yopiq yoki ushbu video cheklangan. Boshqa ochiq profil havolasini yuborib ko'ring.", 
-                message.chat.id, 
-                wait_msg.message_id
-            )
+            print(f"Cobalt xatosi: {e}")
+            # --- ZAXIRA (BACKUP API) TIZIMI ---
+            try:
+                backup_url = f"https://api.bhg.ooo/instagram?url={url}"
+                res = requests.get(backup_url, timeout=12).json()
+                direct_url = res.get("url") or res.get("data", [{}])[0].get("url")
+                
+                if direct_url:
+                    user_downloads[user_id] = {'audio_url': direct_url}
+                    markup = types.InlineKeyboardMarkup(row_width=1)
+                    markup.add(
+                        types.InlineKeyboardButton("🎵 Musiqasini ajratib olish (MP3)", callback_data=f"convert_{user_id}"),
+                        types.InlineKeyboardButton("🔗 Havolani yuklab olish", url=url)
+                    )
+                    bot.send_video(
+                        message.chat.id, 
+                        direct_url, 
+                        caption=f"🎬 **Instagram Reels (Zaxira liniyasi)**\n\n🤖 @Uzzsv7 va @ivella_x777 hamkorligida",
+                        reply_markup=markup,
+                        parse_mode="Markdown"
+                    )
+                    bot.delete_message(message.chat.id, wait_msg.message_id)
+                else:
+                    bot.edit_message_text("❌ Instagram videosini yuklab boʻlmadi. Havola xato yoki profil yopiq.", message.chat.id, wait_msg.message_id)
+            except Exception as err:
+                bot.edit_message_text("❌ Serverda uzilish yuz berdi. Bir necha daqiqadan so'ng qayta urinib ko'ring.", message.chat.id, wait_msg.message_id)
     else:
         bot.send_message(message.chat.id, "❌ Iltimos, toʻgʻri Instagram havolasini yuboring!")
 
-print("Bot 100% mustahkam rejimda ishga tushdi...")
+print("Bot 100% professional rejimda ishga tushdi...")
 bot.polling(none_stop=True)
 
