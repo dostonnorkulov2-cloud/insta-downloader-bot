@@ -21,11 +21,9 @@ threading.Thread(target=run_dummy_server, daemon=True).start()
 
 # --- 2. BOT VA ADMIN SOZLAMALARI ---
 BOT_TOKEN = "8378410376:AAEIVC8SRZd3534Klx9ho1NXuF_uwpevuXg"
-ADMIN_ID = 123456789  # Oʻzingning Telegram ID raqamingni shunga almashtirib qoʻy jigar!
+ADMIN_ID = 123456789  # Oʻzingning Telegram ID raqamingni yozib qoʻy jigar!
 
 bot = telebot.TeleBot(BOT_TOKEN)
-
-# Foydalanuvchi ma'lumotlarini vaqtinchalik saqlash uchun lugʻat
 user_downloads = {}
 
 # --- 3. MAJBURIY OBUNANI TEKSHIRISH FUNKSIYASI ---
@@ -41,23 +39,20 @@ def check_sub(user_id):
             return False
     return True
 
-# --- 4. ASOSIY MENU KLAVIATURASI (PASTDAGI MATNLI TUGMALAR) ---
-def main_menu_markup():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row("Loyiha Kanali 📢", "Bot Haqida ℹ️")
-    markup.row("Qoʻllanma 📖", "Bot Yaratuvchisi 🧑‍💻")
-    return markup
-
-# --- 5. START BUYRUGʻI ---
+# --- 4. START BUYRUGʻI (ESKI 4 TA TUGMA BUTKUL YOʻQOTILDI) ---
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.from_user.id
     
+    # Ortiqcha eski menu buttonlarni Telegram xotirasidan butkul tozalash:
+    bot.set_chat_menu_button(message.chat.id, types.MenuButtonDefault())
+    
     if check_sub(user_id):
+        # Hech qanday pastki matnli klaviatura yo'q, shundoq toza xabar boradi!
         bot.send_message(
             message.chat.id,
             f"Salom {message.from_user.first_name}! 👋\n\nInstagram havolasini yuboring, uni eng maksimal sifatda yuklab beraman.",
-            reply_markup=main_menu_markup()
+            reply_markup=types.ReplyKeyboardRemove() # Eski matnli tugmalarni o'chirib tashlaydi!
         )
     else:
         markup = types.InlineKeyboardMarkup(row_width=1)
@@ -72,7 +67,7 @@ def start(message):
             reply_markup=markup
         )
 
-# --- 6. TEKSHIRISH TUGMASI BOSILGANDA (CALLBACK) ---
+# --- 5. TEKSHIRISH TUGMASI BOSILGANDA (CALLBACK) ---
 @bot.callback_query_handler(func=lambda call: call.data == "check")
 def check_callback(call):
     user_id = call.from_user.id
@@ -81,12 +76,12 @@ def check_callback(call):
         bot.send_message(
             call.message.chat.id,
             "Rahmat! Obuna tasdiqlandi. Endi Instagram havolasini yuborishingiz mumkin. 🚀",
-            reply_markup=main_menu_markup()
+            reply_markup=types.ReplyKeyboardRemove()
         )
     else:
         bot.answer_callback_query(call.id, "Siz hali barcha kanallarga obuna boʻlmadingiz! ❌", show_alert=True)
 
-# --- 7. TUGMADAN MUSIQANI AJRATIB OLISH (CONVERT TO MP3) ---
+# --- 6. TUGMADAN MUSIQANI AJRATIB OLISH (CONVERT TO MP3) ---
 @bot.callback_query_handler(func=lambda call: call.data.startswith("convert_"))
 def convert_to_mp3_callback(call):
     user_id = int(call.data.split("_")[1])
@@ -116,10 +111,7 @@ def convert_to_mp3_callback(call):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
             
-        final_mp3 = f"{audio_file}.mp3" if not audio_file.endswith(".mp3") else audio_file
-        # Agar yt_dlp avtomat .mp3 qo'shgan bo'lsa tekshiramiz
-        if not os.path.exists(final_mp3) and os.path.exists(f"{audio_file}.mp3"):
-            final_mp3 = f"{audio_file}.mp3"
+        final_mp3 = audio_file if os.path.exists(audio_file) else f"{audio_file}.mp3"
 
         with open(final_mp3, 'rb') as f:
             bot.send_audio(call.message.chat.id, f, caption="🎵 @Uzzsv7 va @ivella_x777 hamkorligida tayyorlandi.")
@@ -132,7 +124,7 @@ def convert_to_mp3_callback(call):
         print(e)
         bot.edit_message_text("❌ Musiqani ajratish jarayonida xatolik boʻldi.", call.message.chat.id, wait_msg.message_id)
 
-# --- 8. INSTAGRAM HAVOLALARINI QABUL QILISH, TEXT TUGMALARI VA YUKLASH ---
+# --- 7. INSTAGRAM HAVOLALARINI QABUL QILISH VA YUKLASH ---
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     user_id = message.from_user.id
@@ -140,29 +132,17 @@ def handle_message(message):
         start(message)
         return
 
-    text = message.text
+    url = message.text
 
-    # Pastdagi menyu tugmalari bosilganda:
-    if text == "Loyiha Kanali 📢":
-        bot.send_message(message.chat.id, "Bizning rasmiy kanallarimiz: @Uzzsv7 va @ivella_x777 🚀")
-    elif text == "Bot Haqida ℹ️":
-        bot.send_message(message.chat.id, "🤖 Bu bot Instagram'dan daxshatli tezlikda video va reellar yuklab berish uchun yaratilgan!")
-    elif text == "Qoʻllanma 📖":
-        bot.send_message(message.chat.id, "📖 Botdan foydalanish uchun shunchaki Instagram video havolasini (linkini) shu yerga yuboring.")
-    elif text == "Bot Yaratuvchisi 🧑‍💻":
-        bot.send_message(message.chat.id, "🧑‍💻 Bot yaratuvchisi va admin: @dostonnorkulov2")
-    
-    # Instagram havolasi kelganda (Oʻsha sen aytgan 3 ta shaffof tugma shu yerda):
-    elif "instagram.com" in text:
-        url = text
-        user_downloads[user_id] = {'url': url} # Musiqa ajratish uchun saqlab qo'yamiz
-        
+    if "instagram.com" in url:
+        user_downloads[user_id] = {'url': url}
         wait_msg = bot.send_message(message.chat.id, "🚀 Instagram'dan eng maksimal Ultra HD sifatda yuklanmoqda...")
         
         try:
             filename = f"insta_{user_id}.mp4"
+            # Render xotirasi va tezligi uchun eng optimal yuklash sozlamasi:
             ydl_opts = {
-                'format': 'bestvideo+bestaudio/best',
+                'format': 'best',
                 'outtmpl': filename,
                 'quiet': True,
                 'no_warnings': True
@@ -172,7 +152,7 @@ def handle_message(message):
                 info = ydl.extract_info(url, download=True)
                 title = info.get('title', 'Instagram Reels')[:350]
             
-            # --- MANA OʻSHA SIZ AYTGAN 3 TA SHAFFOF (INLINE) TUGMA ---
+            # --- MANA OʻSHA SEN AYTGAN 3 TA SHAFFOF (INLINE) TUGMA ---
             markup = types.InlineKeyboardMarkup(row_width=1)
             markup.add(
                 types.InlineKeyboardButton("🎵 Musiqasini ajratib olish (MP3)", callback_data=f"convert_{user_id}"),
@@ -180,7 +160,6 @@ def handle_message(message):
                 types.InlineKeyboardButton("📲 Videoni ulashish", switch_inline_query=f"Instagram'dagi daxshatli video: {url}")
             )
             
-            # Videoni yuborish va tagiga inline tugmalarni biriktirish
             with open(filename, 'rb') as video:
                 bot.send_video(
                     message.chat.id, 
@@ -197,12 +176,11 @@ def handle_message(message):
                 
         except Exception as e:
             print(e)
-            bot.edit_message_text("❌ Instagram videosini yuklab boʻlmadi. Havola xato yoki profil yopiq.", message.chat.id, wait_msg.message_id)
-    
+            bot.edit_message_text("❌ Instagram videosini yuklab boʻlmadi. Havola xato, profil yopiq yoki yt_dlp yangilanishi kerak.", message.chat.id, wait_msg.message_id)
     else:
-        bot.send_message(message.chat.id, "❌ Iltimos, faqat toʻgʻri Instagram havolasini yuboring yoki menyudan foydalaning!")
+        bot.send_message(message.chat.id, "❌ Iltimos, faqat toʻgʻri Instagram havolasini yuboring!")
 
-# --- 9. BOTNI JONLANTIRISH ---
+# --- 8. BOTNI JONLANTIRISH ---
 print("Bot muvaffaqiyatli ishga tushmoqda...")
 bot.polling(none_stop=True)
 
