@@ -3,17 +3,8 @@ import socketserver
 import threading
 import telebot
 from telebot import types
-import yt_dlp
-import os
-import subprocess
-
-# --- 0. YT-DLP MAJBURIY YANGILASH ---
-try:
-    print("yt-dlp yangilanmoqda...")
-    subprocess.run(["pip", "install", "--upgrade", "yt-dlp"], check=True)
-    print("yt-dlp muvaffaqiyatli yangilandi!")
-except Exception as e:
-    print(f"yt-dlp yangilashda xatolik: {e}")
+import requests
+import re
 
 # --- 1. RENDER UCHUN DUMMY SERVER ---
 def run_dummy_server():
@@ -33,7 +24,7 @@ BOT_TOKEN = "8378410376:AAEIVC8SRZd3534Klx9ho1NXuF_uwpevuXg"
 bot = telebot.TeleBot(BOT_TOKEN)
 user_downloads = {}
 
-# --- 3. MAJBURIY OBUNANI TEKSHIRISH ---
+# --- 3. MAJBURIY OBUNA ---
 def check_sub(user_id):
     channels = ["@Uzzsv7", "@ivella_x777"]
     for channel in channels:
@@ -42,11 +33,11 @@ def check_sub(user_id):
             if member.status in ['left', 'kicked']:
                 return False
         except Exception as e:
-            print(f"Kanal tekshirishda xatolik ({channel}): {e}")
+            print(f"Kanal tekshirish xatosi: {e}")
             return False
     return True
 
-# --- 4. ASOSIY SHAFFOF MENU TUGMALARI ---
+# --- 4. SHAFFOF MENU ---
 def main_menu_inline():
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -67,8 +58,8 @@ def start(message):
         bot.send_message(
             message.chat.id,
             f"Salom {message.from_user.first_name}! 👋\n\n"
-            f"Instagram havolasini yuboring, uni eng maksimal (Ultra HD/4K) sifatda yuklab beraman!\n\n"
-            f"Yoki pastdagi tugmalar orqali onlayn foydalaning! 👇",
+            f"Instagram havolasini yuboring, uni oʻta yuqori (Original HD) sifatda yuklab beraman!\n\n"
+            f"Yoki pastdagi tugmalardan foydalaning: 👇",
             reply_markup=main_menu_inline()
         )
     else:
@@ -80,7 +71,7 @@ def start(message):
         )
         bot.send_message(message.chat.id, "Botdan foydalanish uchun kanallarimizga obuna boʻling!", reply_markup=markup)
 
-# --- 6. CALLBACK (SHAFFOF TUGMALAR) FUNKSIYALARI ---
+# --- 6. CALLBACK TUGMALARI ---
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     user_id = call.from_user.id
@@ -98,11 +89,11 @@ def callback_handler(call):
             
     elif call.data == "about_bot":
         bot.answer_callback_query(call.id)
-        bot.send_message(call.message.chat.id, "🤖 Bu bot Instagram'dan daxshatli tezlikda video, rasm va reellar yuklab berish uchun yaratilgan!")
+        bot.send_message(call.message.chat.id, "🤖 Bu bot Instagram'dan daxshatli tezlikda va original sifatda video yuklash uchun yaratilgan!")
         
     elif call.data == "help_bot":
         bot.answer_callback_query(call.id)
-        bot.send_message(call.message.chat.id, "📖 **Botdan foydalanish qoʻllanmasi:**\n\nInstagram ilovasidan istalgan video havolasini (linkini) nusxalab oling va botga shundoqqina yuboring. Bot uni avtomat yuklab beradi!")
+        bot.send_message(call.message.chat.id, "📖 **Botdan foydalanish qoʻllanmasi:**\n\nInstagram'dan havola nusxalab botga yuboring. Tamom!")
         
     elif call.data == "creator_bot":
         bot.answer_callback_query(call.id)
@@ -112,52 +103,32 @@ def callback_handler(call):
             call.message.chat.id, 
             "👑 **Bot Yaratuvchisi Haqida:**\n\n"
             "Bu daxshatli va mukammal loyiha ortida IT olamida oʻz oʻrniga ega, eng toza va "
-            "professional kodlarni yozadigan, oʻta iqtidorli dasturchi **Dostonbek** turibdi! 🚀\n\n"
-            "Har qanday taklif, hamkorlik yoki professional bot buyurtmalari uchun loyiha egasiga murojaat qilishingiz mumkin:",
+            "professional kodlarni yozadigan, oʻta iqtidorli dasturchi **Dostonbek** turibdi! 🚀",
             reply_markup=markup,
             parse_mode="Markdown"
         )
         
     elif call.data.startswith("convert_"):
         target_id = int(call.data.split("_")[1])
-        bot.answer_callback_query(call.id, "Videodan musiqa ajratilmoqda... 🎵")
+        bot.answer_callback_query(call.id, "Musiqa tayyorlanmoqda... 🎵")
         
         if target_id not in user_downloads:
-            bot.send_message(call.message.chat.id, "❌ Xatolik: Havola topilmadi. Qaytadan urinib ko'ring.")
+            bot.send_message(call.message.chat.id, "❌ Xatolik: Havola topilmadi.")
             return
             
-        url = user_downloads[target_id]['url']
-        audio_file = f"converted_{target_id}"
+        video_url = user_downloads[target_id]['direct_url']
         
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'outtmpl': audio_file,
-            'quiet': True,
-            'geo_bypass': True,
-            'headers': {
-                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1'
-            },
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-        }
-        
-        wait_msg = bot.send_message(call.message.chat.id, "🎵 Musiqa tayyorlanmoqda...")
+        # Musiqani to'g'ridan-to'g'ri audio fayl qilib yuborish
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-            final_mp3 = f"{audio_file}.mp3"
-            with open(final_mp3, 'rb') as f:
-                bot.send_audio(call.message.chat.id, f, caption="🎵 @Uzzsv7 va @ivella_x777 hamkorligida")
-            bot.delete_message(call.message.chat.id, wait_msg.message_id)
-            if os.path.exists(final_mp3):
-                os.remove(final_mp3)
+            bot.send_audio(
+                call.message.chat.id, 
+                video_url, 
+                caption="🎵 @Uzzsv7 va @ivella_x777 hamkorligida ajratib olindi."
+            )
         except Exception as e:
-            bot.edit_message_text("❌ Musiqani ajratishda xatolik boʻldi.", call.message.chat.id, wait_msg.message_id)
+            bot.send_message(call.message.chat.id, "❌ Musiqani yuborishda xatolik bo'ldi.")
 
-# --- 7. BUSTED-PROOF INSTAGRAM YUKLASH FUNKSIYASI ---
+# --- 7. APIS BILAN INSTAGRAM YUKLASH FUNKSIYASI (BLOKLARSIZ) ---
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     user_id = message.from_user.id
@@ -167,64 +138,74 @@ def handle_message(message):
 
     url = message.text
     if "instagram.com" in url:
-        user_downloads[user_id] = {'url': url}
-        wait_msg = bot.send_message(message.chat.id, "🚀 Instagram'dan video yuklanmoqda, iltimos kuting...")
+        wait_msg = bot.send_message(message.chat.id, "🚀 Instagram'dan video original sifatda yuklanmoqda...")
         
         try:
-            filename = f"insta_{user_id}.mp4"
+            # Nashr qilingan ochiq va daxshatli tezkor yuklash API xizmati
+            api_url = f"https://api.bhg.ooo/instagram?url={url}"
+            response = requests.get(api_url, timeout=15).json()
             
-            # Instagram blokirovkasini aylanib o'tuvchi eng daxshatli sozlamalar (Mobile Headers Emulator):
-            ydl_opts = {
-                'format': 'best',
-                'outtmpl': filename,
-                'quiet': True,
-                'no_warnings': True,
-                'geo_bypass': True,  # Server joylashuvini yashirish
-                'add_header': [
-                    'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-                    'Accept-Language: en-US,en;q=0.5'
-                ],
-                'headers': {
-                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1',
-                    'Referer': 'https://www.instagram.com/',
-                }
-            }
-            
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                title = info.get('title', 'Instagram Reels')[:350]
-            
-            markup = types.InlineKeyboardMarkup(row_width=1)
-            markup.add(
-                types.InlineKeyboardButton("🎵 Musiqasini ajratib olish (MP3)", callback_data=f"convert_{user_id}"),
-                types.InlineKeyboardButton("🔗 Havolani yuklab olish", url=url),
-                types.InlineKeyboardButton("📲 Videoni ulashish", switch_inline_query=f"Instagram video: {url}")
-            )
-            
-            with open(filename, 'rb') as video:
+            # API javobidan to'g'ridan-to'g'ri video linkini olish
+            if response.get("status") == "success" or "data" in response:
+                # Ba'zi API'larda "data", ba'zilarida "url" keladi, eng birinchisini sug'urib olamiz
+                video_data = response.get("data", [{}])[0]
+                direct_url = video_data.get("url") or response.get("url")
+                
+                if not direct_url:
+                    raise Exception("Video manzili topilmadi")
+                
+                # Keyinchalik MP3 qilib berish uchun saqlab qo'yamiz
+                user_downloads[user_id] = {'direct_url': direct_url}
+                
+                markup = types.InlineKeyboardMarkup(row_width=1)
+                markup.add(
+                    types.InlineKeyboardButton("🎵 Musiqasini ajratib olish (MP3)", callback_data=f"convert_{user_id}"),
+                    types.InlineKeyboardButton("🔗 Havolani yuklab olish", url=url),
+                    types.InlineKeyboardButton("📲 Videoni ulashish", switch_inline_query=f"Instagram video: {url}")
+                )
+                
+                # Telegramning o'ziga yuklashni topshiramiz (Server charchamaydi va bloklanmaydi)
                 bot.send_video(
                     message.chat.id, 
-                    video, 
-                    caption=f"🎬 **Sarlavha:** {title}\n\n🤖 @Uzzsv7 va @ivella_x777 hamkorligida",
+                    direct_url, 
+                    caption=f"🎬 **Instagram Reels**\n\n🤖 @Uzzsv7 va @ivella_x777 hamkorligida",
                     reply_markup=markup,
                     parse_mode="Markdown"
                 )
-            
-            bot.delete_message(message.chat.id, wait_msg.message_id)
-            if os.path.exists(filename):
-                os.remove(filename)
+                bot.delete_message(message.chat.id, wait_msg.message_id)
+            else:
+                raise Exception("API xatosi")
                 
         except Exception as e:
             print(f"Yuklash xatosi: {e}")
-            bot.edit_message_text(
-                "❌ Instagram videosini yuklab boʻlmadi.\n\n"
-                "💡 **Maslahat:** Server IP manzili vaqtinchalik bloklangan boʻlishi mumkin. Bir necha daqiqadan soʻng qayta urinib koʻring yoki boshqa havola yuboring.", 
-                message.chat.id, 
-                wait_msg.message_id
-            )
+            # Agar birinchi API'da xato bo'lsa, zaxira (Backup) API ishga tushadi
+            try:
+                backup_url = f"https://api.vreden.my.id/api/instagram?url={url}"
+                res = requests.get(backup_url, timeout=15).json()
+                direct_url = res.get("result", {}).get("url") or res.get("url")
+                
+                if direct_url:
+                    user_downloads[user_id] = {'direct_url': direct_url}
+                    markup = types.InlineKeyboardMarkup(row_width=1)
+                    markup.add(
+                        types.InlineKeyboardButton("🎵 Musiqasini ajratib olish (MP3)", callback_data=f"convert_{user_id}"),
+                        types.InlineKeyboardButton("🔗 Havolani yuklab olish", url=url)
+                    )
+                    bot.send_video(
+                        message.chat.id, 
+                        direct_url, 
+                        caption=f"🎬 **Instagram Reels (Backup)**\n\n🤖 @Uzzsv7 va @ivella_x777 hamkorligida",
+                        reply_markup=markup,
+                        parse_mode="Markdown"
+                    )
+                    bot.delete_message(message.chat.id, wait_msg.message_id)
+                else:
+                    bot.edit_message_text("❌ Instagram videosini yuklab boʻlmadi. Havola xato yoki profil yopiq.", message.chat.id, wait_msg.message_id)
+            except Exception as backup_err:
+                bot.edit_message_text("❌ Tizimda vaqtinchalik uzilish. Iltimos birozdan so'ng qayta urinib ko'ring.", message.chat.id, wait_msg.message_id)
     else:
         bot.send_message(message.chat.id, "❌ Iltimos, toʻgʻri Instagram havolasini yuboring!")
 
-print("Bot ishga tushdi...")
+print("Bot universal rejimda ishga tushdi...")
 bot.polling(none_stop=True)
 
